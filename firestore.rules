@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // A pad is identified by its random 8-character share code. The code acts
+    // like a secret link: anyone who has it (i.e., you and your wife) can read
+    // and write the pad's notes. All access still requires an authenticated
+    // (anonymous) app user, so random internet traffic is rejected.
+    match /pads/{padCode} {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list, update, delete: if false;
+
+      match /notes/{noteId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Shared Notepad</string>
+    <string name="widget_label">Shared Notepad</string>
+    <string name="widget_description">Shows your pinned shared note on the home screen</string>
+    <string name="widget_loading">Loading note…</string>
+</resources>

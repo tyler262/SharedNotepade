@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Notepad page -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#5D4037"
+        android:strokeWidth="3"
+        android:pathData="M34,30 h40 a4,4 0 0 1 4,4 v44 a4,4 0 0 1 -4,4 h-40 a4,4 0 0 1 -4,-4 v-44 a4,4 0 0 1 4,-4 z" />
+    <!-- Spiral binding -->
+    <path
+        android:strokeColor="#5D4037"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M40,30 v-6 M50,30 v-6 M60,30 v-6 M70,30 v-6" />
+    <!-- Note lines -->
+    <path
+        android:strokeColor="#8D6E63"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,44 h32 M38,54 h32 M38,64 h20" />
+</vector>
