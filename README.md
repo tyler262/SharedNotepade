@@ -1,85 +1,129 @@
 # Shared Notepad
 
-A shared notepad app for two phones. Made for couples who keep their life in
-the notes widget — grocery lists, important info, reminders — and never want
-to lose it again.
+A shared notepad for two phones. Notes and shopping lists live **on both
+phones**, and the phones sync directly to each other over your home Wi-Fi.
+There is no server, no account, and nothing stored online.
 
-- **Synced in real time.** Edit a note on one phone and it appears on the other
-  within seconds.
-- **Backed up in the cloud.** Notes live in Google Firebase (Firestore), not
-  just on the phone. Lose the widget, the app, or the whole phone — your notes
-  are safe.
-- **Works offline.** Notes are cached on-device; edits made offline sync
-  automatically when you're back online.
-- **Home-screen widget.** Pin a note (tap the ★ on it) and it shows on your
-  home screen, just like the Samsung notepad widget. Tap ↻ on the widget to
-  refresh, or tap the widget to open the app.
-- **No accounts or passwords.** One of you creates the notepad and gets an
-  8-character share code; the other types it in once. Done.
+Built with Flutter, for Android.
 
-## One-time setup (about 15 minutes)
+## What it does
 
-The app needs its own (free) Firebase project to store the notes. You only do
-this once:
+- **Notes and shopping lists.** Any note can be flipped into a tickable list
+  and back again. List items have a free-text amount ("2", "1 gallon", "a
+  bunch"), a checkbox for crossing things off at the store, and drag-to-reorder
+  so you can put them in aisle order.
+- **Both phones stay in step.** Add bread at home while she's ticking off milk
+  at the store — when the phones are next on the same Wi-Fi, both changes
+  survive. Neither edit overwrites the other.
+- **Nothing to sign into.** One phone starts a notepad and produces a pairing
+  code; the other pastes it in once.
+- **Your notes never leave your devices.** No cloud database, no company
+  holding your grocery list.
 
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-   and sign in with any Google account. Click **Create a project** (any name,
-   e.g. "shared-notepad"). Google Analytics can be turned off.
-2. In the project, click the **Android icon** to add an Android app:
-   - Package name: `com.sharednotepad.app`
-   - Download the `google-services.json` it gives you and **replace** the
-     placeholder file at `app/google-services.json` in this repo.
-3. In the left sidebar, open **Build → Authentication → Get started →
-   Sign-in method**, and enable **Anonymous**.
-4. Open **Build → Firestore Database → Create database**, choose production
-   mode and a region near you.
-5. In Firestore's **Rules** tab, paste the contents of
-   [`firestore.rules`](firestore.rules) from this repo and click **Publish**.
+## How the syncing works
 
-The free tier limits (50k reads / 20k writes per day) are far more than two
-people taking notes will ever use.
+Each phone keeps the whole notepad in a single JSON file — that file is the
+source of truth, and the app works fully offline.
 
-## Building the app
+When both phones are on the same Wi-Fi:
 
-Open the project in [Android Studio](https://developer.android.com/studio),
-let it sync, then **Run** it on a phone connected over USB — or build an APK
-from the command line:
+1. Each one announces itself with a small UDP broadcast on port 51422.
+2. When they spot each other, one POSTs its notes to the other's built-in HTTP
+   endpoint (on a port the OS assigns), and gets the other's notes back in the
+   same response. One round trip, both sides converge.
+3. Every request is signed with the shared pad secret, which is never sent over
+   the network. Unsigned or wrong-pad requests are rejected.
+
+Merging is last-write-wins, but applied *per field* rather than per note. A
+note's title, body and its individual list items each carry their own
+timestamp, so ticking off an item never clobbers a title edit made on the other
+phone. Deletes leave a tombstone for 30 days so they propagate instead of the
+item reappearing. The rules are covered by the tests in `test/`.
+
+### The honest limitation
+
+**The phones only sync when they're on the same Wi-Fi.** If she's at the store
+on mobile data and you add something at home, she won't see it until she's
+back on the home network. Everything is saved safely on each phone in the
+meantime and merges when they meet again — nothing is lost, it's just not
+instant while you're apart.
+
+That is the unavoidable trade of having no server: with nothing in the middle,
+two phones need to be able to reach each other directly. If you decide you want
+changes to appear while you're apart, the fix is to add one shared drop point
+(a file in your own Google Drive is the smallest version of this) — the merge
+logic here would carry over unchanged.
+
+Two smaller caveats:
+
+- Sync traffic is *authenticated* but not encrypted. It never leaves your home
+  network, but someone already on your Wi-Fi could read a grocery list off the
+  wire. If that matters, that's the thing to fix next.
+- The merge trusts each phone's clock. Both phones get their time from the
+  network, so this is fine in practice.
+
+If your router has "client isolation" / "AP isolation" turned on, it blocks
+phones from talking to each other and sync won't find a partner. Turning that
+off in your router settings fixes it.
+
+## Backups
+
+Because everything is on-device, `Pairing & backup → Send a backup` exports the
+whole notepad as text you can email or message to yourself. **Restore from
+backup** merges it back on any phone. Having the notes on two phones already
+means one broken phone can't lose them, but a backup covers losing both.
+
+Internally, saves are written to a temp file and renamed into place, and the
+previous good copy is kept as `notes.backup.json`. A save interrupted by a
+crash can't corrupt your notes, and a corrupted file falls back to the backup.
+
+## Building it
+
+You need [Flutter](https://docs.flutter.dev/get-started/install) and Android
+Studio (for the Android SDK).
 
 ```bash
-./gradlew assembleDebug
-# APK lands in app/build/outputs/apk/debug/app-debug.apk
+flutter pub get
+flutter test      # 26 tests covering merging, syncing and storage
+flutter build apk --release
+# APK lands in build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Copy the APK to both phones (e.g. via Quick Share) and install it. Android
-will ask to allow installing from unknown sources — that's expected for a
-self-built app.
+Copy the APK to both phones (Quick Share works well) and install. Android will
+warn about installing from an unknown source — expected for a self-built app.
+
+To run on a phone plugged in over USB: `flutter run --release`.
 
 ## Using it
 
-1. On the first phone: open the app → **Create a new shared notepad** → tap
-   the share icon (top right) to see the 8-character code.
-2. On the second phone: open the app → enter the code → **Join existing
-   notepad**.
-3. Add notes with **+**. Tap the **★** on a note to pin it — the pinned note
-   is what the home-screen widget shows.
-4. Long-press your home screen → **Widgets** → **Shared Notepad** to add the
-   widget.
+1. **First phone:** open the app → *Set up* → *Start a new notepad* → *Send*,
+   and text the pairing code to your partner.
+2. **Second phone:** open the app → *Set up* → *Join with a code* → paste.
+3. Make notes with **+**, or shopping lists with the checklist button. The
+   checklist icon in a note's toolbar converts between the two — converting a
+   note turns each line into its own tickable item.
+4. Keep both phones on the home Wi-Fi with the app open for a moment to sync.
+   The bar under the title tells you what sync is doing.
 
-### Notes on the widget
+## Layout
 
-The widget shows the last-synced copy of the pinned note. It refreshes when
-you open the app, roughly every 30 minutes on its own, or instantly when you
-tap **↻** on it.
-
-### Security model
-
-The share code is a random 8-character secret (~40 bits). Anyone who has the
-code can read/write that one notepad — treat it like a house key and don't
-post it anywhere public. All traffic additionally requires Firebase anonymous
-authentication, so the database is not open to unauthenticated requests.
+```
+lib/
+  models/note.dart          Note + ChecklistItem, and the merge rules
+  data/note_store.dart      On-device JSON storage, atomic saves, backups
+  data/pairing.dart         Pad id, shared secret, pairing codes
+  sync/sync_service.dart    UDP discovery + signed HTTP sync
+  ui/                       Note list, editor, pairing screen
+test/
+  note_merge_test.dart      Merge correctness (concurrent edits, deletes)
+  sync_test.dart            Two phones syncing over real sockets
+  store_test.dart           Persistence, crash recovery, import/export
+```
 
 ## Ideas for later
 
-- Checklists with checkboxes for groceries (tap to mark off)
-- Push notification / instant widget update when the other person edits
-- Edit history / trash can for accidental deletions
+- Sync while apart, via a file in your own Google Drive
+- A home-screen widget showing the current shopping list
+- Encrypting sync traffic, not just signing it
+- Connect-by-IP for routers that block broadcast (`syncWithAddress` already
+  does the work; it just needs a text field in the UI)

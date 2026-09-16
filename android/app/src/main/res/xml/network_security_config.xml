@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phone-to-phone sync speaks plain HTTP to a private address on your own
+  Wi-Fi, so cleartext has to be permitted. Requests are signed with the shared
+  pad secret, and nothing is ever sent off the local network.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
