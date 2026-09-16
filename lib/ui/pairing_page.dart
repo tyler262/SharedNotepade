@@ -4,11 +4,13 @@ import 'package:share_plus/share_plus.dart';
 
 import '../data/note_store.dart';
 import '../data/pairing.dart';
-import '../sync/sync_service.dart';
+import '../sync/cloud_sync.dart';
+import '../sync/sync_coordinator.dart';
+import '../sync/sync_service.dart' show SyncStatus;
 
 class PairingPage extends StatefulWidget {
   final NoteStore store;
-  final SyncService sync;
+  final SyncCoordinator sync;
 
   const PairingPage({super.key, required this.store, required this.sync});
 
@@ -17,6 +19,8 @@ class PairingPage extends StatefulWidget {
 }
 
 class _PairingPageState extends State<PairingPage> {
+  bool _checkingRelay = false;
+
   Pairing get _pairing => widget.sync.pairing;
 
   Future<void> _apply(Pairing next) async {
@@ -61,8 +65,74 @@ class _PairingPageState extends State<PairingPage> {
       _toast("That code didn't look right. Copy the whole thing and try again.");
       return;
     }
-    await _apply(_pairing.joinPad(parsed.padId, parsed.secret));
-    _toast('Paired. Open the app on both phones with Wi-Fi on to sync.');
+    await _apply(_pairing.joinPad(
+      parsed.padId,
+      parsed.secret,
+      newRelayUrl: parsed.relayUrl.isNotEmpty ? parsed.relayUrl : null,
+    ));
+    _toast(parsed.relayUrl.isNotEmpty
+        ? 'Paired. You can sync from anywhere.'
+        : 'Paired. Sync happens when both phones are on the same Wi-Fi.');
+  }
+
+  Future<void> _relayDialog() async {
+    final controller = TextEditingController(text: _pairing.relayUrl);
+    final url = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sync from anywhere'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Paste the address of the relay you deployed to Cloudflare. '
+              'See the README for the one-time setup.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                hintText: 'shared-notepad-relay.you.workers.dev',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          if (_pairing.hasRelay)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ''),
+              child: const Text('Turn off'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (url == null) return;
+
+    if (url.trim().isEmpty) {
+      await _apply(_pairing.withRelayUrl(''));
+      _toast('Relay turned off. Back to Wi-Fi-only syncing.');
+      return;
+    }
+
+    setState(() => _checkingRelay = true);
+    final reachable = await CloudSync.probe(url);
+    if (!mounted) return;
+    setState(() => _checkingRelay = false);
+
+    if (!reachable) {
+      _toast("Couldn't reach that address. Check it and try again.");
+      return;
+    }
+    await _apply(_pairing.withRelayUrl(url));
+    _toast('Relay connected. Your notes now sync from anywhere.');
   }
 
   Future<void> _importDialog() async {
@@ -188,7 +258,9 @@ class _PairingPageState extends State<PairingPage> {
                 title: Text(s.message),
                 subtitle: Text(
                   s.lastSyncedAt == null
-                      ? 'Both phones need to be on the same Wi-Fi'
+                      ? (_pairing.hasRelay
+                          ? 'Syncs over Wi-Fi at home, or anywhere via the relay'
+                          : 'Both phones need to be on the same Wi-Fi')
                       : 'Last synced ${_ago(s.lastSyncedAt!)}',
                 ),
                 trailing: TextButton(
@@ -196,6 +268,19 @@ class _PairingPageState extends State<PairingPage> {
                   child: const Text('Sync now'),
                 ),
               ),
+            ),
+            ListTile(
+              leading: _checkingRelay
+                  ? const SizedBox(
+                      width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(_pairing.hasRelay ? Icons.cloud_done_outlined : Icons.cloud_off_outlined),
+              title: Text(_pairing.hasRelay ? 'Syncing from anywhere' : 'Sync from anywhere'),
+              subtitle: Text(
+                _pairing.hasRelay
+                    ? _pairing.relayUrl
+                    : 'Off — add your Cloudflare relay to sync away from home',
+              ),
+              onTap: _checkingRelay ? null : _relayDialog,
             ),
           ],
           const Divider(height: 32),

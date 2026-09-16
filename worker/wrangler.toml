@@ -1,0 +1,10 @@
+name = "shared-notepad-relay"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Created with:  wrangler d1 create shared-notepad
+# Paste the database_id it prints in below.
+[[d1_databases]]
+binding = "DB"
+database_name = "shared-notepad"
+database_id = "PASTE_YOUR_DATABASE_ID_HERE"

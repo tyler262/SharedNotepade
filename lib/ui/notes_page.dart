@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../data/note_store.dart';
 import '../models/note.dart';
-import '../sync/sync_service.dart';
+import '../sync/sync_coordinator.dart';
+import '../sync/sync_service.dart' show SyncStatus;
 import 'note_editor_page.dart';
 import 'pairing_page.dart';
 
 class NotesPage extends StatelessWidget {
   final NoteStore store;
-  final SyncService sync;
+  final SyncCoordinator sync;
 
   const NotesPage({super.key, required this.store, required this.sync});
 

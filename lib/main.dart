@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'data/note_store.dart';
 import 'data/pairing.dart';
-import 'sync/sync_service.dart';
+import 'sync/sync_coordinator.dart';
 import 'ui/notes_page.dart';
 import 'ui/pairing_page.dart';
 
@@ -13,7 +13,7 @@ Future<void> main() async {
   await store.load();
 
   final pairing = await Pairing.load();
-  final sync = SyncService(store: store, pairing: pairing);
+  final sync = SyncCoordinator(store: store, pairing: pairing);
   store.onLocalChange = sync.schedulePush;
   await sync.start();
 
@@ -22,7 +22,7 @@ Future<void> main() async {
 
 class SharedNotepadApp extends StatefulWidget {
   final NoteStore store;
-  final SyncService sync;
+  final SyncCoordinator sync;
 
   const SharedNotepadApp({super.key, required this.store, required this.sync});
 
@@ -74,7 +74,7 @@ class _SharedNotepadAppState extends State<SharedNotepadApp> with WidgetsBinding
 /// Shown until this phone has either started a notepad or joined one.
 class _FirstRunGate extends StatefulWidget {
   final NoteStore store;
-  final SyncService sync;
+  final SyncCoordinator sync;
 
   const _FirstRunGate({required this.store, required this.sync});
 

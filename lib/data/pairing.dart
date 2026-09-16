@@ -13,17 +13,34 @@ class Pairing {
   final String padId;
   final String secret;
 
-  const Pairing({required this.deviceId, required this.padId, required this.secret});
+  /// Base URL of the Cloudflare relay, or empty for Wi-Fi-only syncing.
+  /// Travels inside the pairing code, so only the phone that deployed the
+  /// relay ever has to type it.
+  final String relayUrl;
+
+  const Pairing({
+    required this.deviceId,
+    required this.padId,
+    required this.secret,
+    this.relayUrl = '',
+  });
 
   bool get isPaired => padId.isNotEmpty && secret.isNotEmpty;
 
-  /// The string you text to your partner. Decodes back to padId + secret.
+  bool get hasRelay => relayUrl.isNotEmpty;
+
+  /// The string you text to your partner. Carries the pad, its secret and the
+  /// relay address.
   String get pairCode {
-    final raw = utf8.encode(jsonEncode({'p': padId, 's': secret}));
+    final raw = utf8.encode(jsonEncode({
+      'p': padId,
+      's': secret,
+      if (relayUrl.isNotEmpty) 'r': relayUrl,
+    }));
     return base64Url.encode(raw).replaceAll('=', '');
   }
 
-  static ({String padId, String secret})? decodePairCode(String code) {
+  static ({String padId, String secret, String relayUrl})? decodePairCode(String code) {
     try {
       var c = code.trim().replaceAll(RegExp(r'\s'), '');
       c = c.padRight((c.length + 3) ~/ 4 * 4, '=');
@@ -31,18 +48,31 @@ class Pairing {
       final padId = j['p'] as String?;
       final secret = j['s'] as String?;
       if (padId == null || secret == null || padId.isEmpty || secret.isEmpty) return null;
-      return (padId: padId, secret: secret);
+      return (padId: padId, secret: secret, relayUrl: (j['r'] ?? '') as String);
     } catch (_) {
       return null;
     }
   }
 
-  Map<String, dynamic> toJson() => {'deviceId': deviceId, 'padId': padId, 'secret': secret};
+  /// Trims a pasted relay URL into the form the client expects.
+  static String normalizeRelayUrl(String raw) {
+    var url = raw.trim();
+    if (url.isEmpty) return '';
+    if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://$url';
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    return url;
+  }
+
+  Map<String, dynamic> toJson() =>
+      {'deviceId': deviceId, 'padId': padId, 'secret': secret, 'relayUrl': relayUrl};
 
   factory Pairing.fromJson(Map<String, dynamic> j) => Pairing(
         deviceId: j['deviceId'] as String,
         padId: (j['padId'] ?? '') as String,
         secret: (j['secret'] ?? '') as String,
+        relayUrl: (j['relayUrl'] ?? '') as String,
       );
 
   static Future<File> _file() async {
@@ -69,11 +99,24 @@ class Pairing {
     await f.writeAsString(jsonEncode(toJson()), flush: true);
   }
 
-  /// Starts a brand-new pad on this phone.
-  Pairing createPad() => Pairing(deviceId: deviceId, padId: newId(8), secret: newId(24));
+  /// Starts a brand-new pad on this phone, keeping any relay already set up.
+  Pairing createPad() =>
+      Pairing(deviceId: deviceId, padId: newId(8), secret: newId(24), relayUrl: relayUrl);
 
-  Pairing joinPad(String newPadId, String newSecret) =>
-      Pairing(deviceId: deviceId, padId: newPadId, secret: newSecret);
+  Pairing joinPad(String newPadId, String newSecret, {String? newRelayUrl}) => Pairing(
+        deviceId: deviceId,
+        padId: newPadId,
+        secret: newSecret,
+        relayUrl: newRelayUrl ?? relayUrl,
+      );
 
-  Pairing unpair() => Pairing(deviceId: deviceId, padId: '', secret: '');
+  Pairing withRelayUrl(String url) => Pairing(
+        deviceId: deviceId,
+        padId: padId,
+        secret: secret,
+        relayUrl: normalizeRelayUrl(url),
+      );
+
+  /// Leaves the pad but keeps the relay address, so re-pairing is one step.
+  Pairing unpair() => Pairing(deviceId: deviceId, padId: '', secret: '', relayUrl: relayUrl);
 }

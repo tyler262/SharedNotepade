@@ -1,0 +1,8 @@
+# The `relay` tag marks tests that need a running Cloudflare Worker. They are
+# skipped automatically unless SNP_RELAY_URL is set:
+#
+#   cd worker && npx wrangler dev --local --port 8787
+#   SNP_RELAY_URL=http://127.0.0.1:8787 flutter test
+tags:
+  relay:
+    description: Requires a running relay (see test/relay_contract_test.dart)

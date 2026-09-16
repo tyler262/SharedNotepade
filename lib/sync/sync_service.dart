@@ -81,8 +81,9 @@ class SyncService {
   int? get httpPort => _http?.port;
 
   /// [enableDiscovery] is off in tests, where two services share a process and
-  /// cannot both own the broadcast port.
-  Future<void> start({bool enableDiscovery = true}) async {
+  /// cannot both own the broadcast port. [enableTimer] is off when a
+  /// [SyncCoordinator] is driving the schedule instead.
+  Future<void> start({bool enableDiscovery = true, bool enableTimer = true}) async {
     await stop();
     if (!pairing.isPaired) {
       status.value = const SyncStatus(message: 'Not paired yet');
@@ -91,8 +92,10 @@ class SyncService {
     try {
       await _startHttp();
       if (enableDiscovery) await _startDiscovery();
-      _periodic = Timer.periodic(const Duration(seconds: 20), (_) => unawaited(syncNow()));
-      unawaited(syncNow());
+      if (enableTimer) {
+        _periodic = Timer.periodic(const Duration(seconds: 20), (_) => unawaited(syncNow()));
+        unawaited(syncNow());
+      }
     } catch (e) {
       status.value = SyncStatus(message: 'Sync unavailable: $e');
     }
